@@ -1,1 +1,1 @@
-# smartthings
+Bill's repository for smartthings scripts.
