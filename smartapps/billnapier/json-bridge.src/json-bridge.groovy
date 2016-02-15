@@ -26,7 +26,6 @@ definition(
     iconX3Url: "https://s3.amazonaws.com/smartapp-icons/Convenience/Cat-Convenience@2x.png",
     oauth: true)
 
-
 def installed() {
     initialize()
 }
@@ -46,14 +45,25 @@ preferences {
     page(name: "copyConfig")
 }
 
+def capabilities() {
+  return [
+        "switch",
+        "colorControl",
+        "temperatureMeasurement",
+    ]
+}
+
 def copyConfig() {
     if (!state.accessToken) {
         createAccessToken()
     }
     dynamicPage(name: "copyConfig", title: "Config", install:true) {
         section("Select devices to include in the /devices API call") {
-            input "switches", "capability.switch", title: "Switches", multiple: true, required: false
-            input "hues", "capability.colorControl", title: "Hues", multiple: true, required: false
+            for (capability in capabilities()) {
+              def fullCapability = "capability." + capability
+              def varname = capability + "s"
+              input varname, fullCapability, title: capability, multiple: true, required: false
+            }
         }
 
         section() {
@@ -67,37 +77,34 @@ def copyConfig() {
     }
 }
 
-def renderConfig() {
-    def configJson = new groovy.json.JsonOutput().toJson([
-        description: "JSON API",
-        platforms: [
-            [
-                platform: "SmartThings",
-                name: "SmartThings",
-                app_id:        app.id,
-                access_token:  state.accessToken
-            ]
-        ],
-    ])
-
-    def configString = new groovy.json.JsonOutput().prettyPrint(configJson)
-    render contentType: "text/plain", data: configString
-}
-
 def deviceCommandMap(device, type) {
   device.supportedCommands.collectEntries { command->
-      def commandUrl = "https://graph.api.smartthings.com/api/smartapps/installations/${app.id}/${type}/${device.id}/command/${command.name}?access_token=${state.accessToken}"
+      def commandUrl = "https://graph.api.smartthings.com/api/smartapps/installations/${app.id}/${type}/${device.id}/command/${command.name}"
       [
         (command.name): commandUrl
       ]
   }
 }
 
+def deviceAttributeMap(device, type) {
+  device.supportedAttributes.collectEntries { attribute->
+      def attrUrl = "https://graph.api.smartthings.com/api/smartapps/installations/${app.id}/${type}/${device.id}/attribute/${attribute.name}"
+      [
+        (attribute.name): attrUrl
+      ]
+  }
+}
+
 def authorizedDevices() {
+	// Well, can't figure out how to do this dynamically....
     [
-        switches: switches,
-        hues: hues
+        colorControl: colorControls,
+        temperatureMeasurement: temperatureMeasurements,
+        switch: switchs
     ]
+  //  def b = capabilities().collectEntries {
+  //    [(it): evaluate("temperatureMeasurement")]
+   // }
 }
 
 def renderDevices() {
@@ -106,7 +113,8 @@ def renderDevices() {
             (devices.key): devices.value.collect { device->
                 [
                     name: device.displayName,
-                    commands: deviceCommandMap(device, devices.key)
+                    commands: deviceCommandMap(device, devices.key),
+                    attributes: deviceAttributeMap(device, devices.key)
                 ]
             }
         ]
@@ -130,8 +138,18 @@ def deviceCommand() {
   }
 }
 
+def attributeCommand() {
+  def device  = authorizedDevices()[params.type].find { it.id == params.id }
+  def attribute = params.attribute
+  if (!device) {
+      httpError(404, "Device not found")
+  } else {
+      return device.currentState(attribute)
+  }
+}
+
 mappings {
     path("/devices")                      { action: [GET: "renderDevices"]  }
-    path("/config")                       { action: [GET: "renderConfig"]  }
     path("/:type/:id/command/:command")   { action: [PUT: "deviceCommand"] }
+    path("/:type/:id/attribute/:attribute")   { action: [GET: "attributeCommand"] }
 }
