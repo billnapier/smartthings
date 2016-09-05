@@ -113,6 +113,7 @@ def renderDevices() {
             (devices.key): devices.value.collect { device->
                 [
                     name: device.displayName,
+                    id: device.id,
                     commands: deviceCommandMap(device, devices.key),
                     attributes: deviceAttributeMap(device, devices.key)
                 ]

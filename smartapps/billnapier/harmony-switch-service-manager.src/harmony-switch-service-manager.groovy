@@ -63,6 +63,7 @@ def initialize() {
 
 private addDevice() {
     log.debug "Going to add a new device"
+    // TODO(napier): figure out a better scheme here, in case we have multiple switches installed.
     def dni = "billnapier:harmony"
     def d = getChildDevice(dni)
     if (!d) {
@@ -85,6 +86,12 @@ def off() {
 }
 
 def on() {
-  harmony.startActivity(onActivityName)
+  // Find activity id
+  def activityId = getActivities().findResult{it.name == onActivityName}
+  log.debug "BILL"
+  log.debug activityId
+  if (activityId) {
+    harmony.startActivity(Integer.toString(activityId))
+  }
 }
 // TODO: implement event handlers
